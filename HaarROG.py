@@ -57,14 +57,16 @@ import matplotlib.pyplot as plt
 #-----------------------------------------------------------------------
 #вспомогательные процедуры
 
-def changeOpCharac(dataList, markedData, key, rateCh):
+def changeOpCharac(detectListParam, markedDataParam, key, rateCh):
     #список для найденных уникальных номерных пластин
     #список для общего количества найденных номерных пластин
     findPlates = []
     findUnicPlates = []
-    localList = dataList.copy()
 
-    for i in range(len(localList)):
+    detectList = detectListParam.copy()
+    markedData = markedDataParam.copy()
+
+    for i in range(len(detectList)):
         x1 = 0
         x2 = 0
         y1 = 0
@@ -86,18 +88,18 @@ def changeOpCharac(dataList, markedData, key, rateCh):
                         ]
 
             #print('LL')
-            #print(localList)
+            #print(detectList)
             #print('MNPL')
             #print(markedNumPlatesList)
 
             #x1 < x2
             #упорядочили по x
-            if localList[i][0] < localList[i][2]:
-                x1 = localList[i][0]
-                x2 = localList[i][2]
+            if detectList[i][0] < detectList[i][2]:
+                x1 = detectList[i][0]
+                x2 = detectList[i][2]
             else:
-                x1 = localList[i][2]
-                x2 = localList[i][0]
+                x1 = detectList[i][2]
+                x2 = detectList[i][0]
 
             #упорядочили по x
             if markedNumPlatesList[0] < markedNumPlatesList[2]:
@@ -109,12 +111,12 @@ def changeOpCharac(dataList, markedData, key, rateCh):
 
             #y1 < y2
             #упорядочили по y
-            if localList[i][1] < localList[i][3]:
-                y1 = localList[i][1]
-                y2 = localList[i][3]
+            if detectList[i][1] < detectList[i][3]:
+                y1 = detectList[i][1]
+                y2 = detectList[i][3]
             else:
-                y1 = localList[i][3]
-                y2 = localList[i][1]
+                y1 = detectList[i][3]
+                y2 = detectList[i][1]
 
             #упорядочили по x
             if markedNumPlatesList[1] < markedNumPlatesList[3]:
@@ -151,15 +153,13 @@ def changeOpCharac(dataList, markedData, key, rateCh):
                 findUnicPlates.append(str(j))
 
     #print(findPlates, ' findPlates')
-    #print(localList, ' localList')
+    #print(detectList, ' detectList')
     #print(findUnicPlates, ' findUnicPlates')
     #print(len(markedData[key]['regions']), ' len(markedData[key][\'regions\'])')
 
     rateCh.tp += len(findPlates)
-    rateCh.fp += len(localList) - len(findPlates)
+    rateCh.fp += len(detectList) - len(findPlates)
     rateCh.fn += len(markedData[key]['regions']) - len(findUnicPlates)
-    if len(markedData[key]['regions']) == 0 and len(findPlates) == 0:
-        rateCh.tn += 1
 
     return rateCh
 
@@ -228,8 +228,8 @@ lowerBorder = 0.7
 topBorder = 1.8
 
 #два списка для составления ROC-кривой
-fprList = []
-tprList = []
+precisionList = []
+recallList = []
 
 #точки, для построения графика
 points = [1.01, 1.05, 1.1, 1.2, 1.3, 1.4, 1.5]
@@ -300,29 +300,54 @@ for pIter in range(len(points)):
 
     #считаем fpr и trp (учитываем деление на ноль)
     try:
-      tprList.append(rateCh.tp / (rateCh.tp + rateCh.fn))
-      print('tpr:' + str(rateCh.tp / (rateCh.tp + rateCh.fn)))
+      precisionList.append(rateCh.tp / (rateCh.tp + rateCh.fp))
+      print('precision:' + str(rateCh.tp / (rateCh.tp + rateCh.fp)))
     except:
-      tprList.append(0)
+      precisionList.append(0)
 
     try:
-      fprList.append(rateCh.fp / (rateCh.fp + rateCh.tn))
-      print('fpr:' + str(rateCh.fp / (rateCh.fp + rateCh.tn)))
+      recallList.append(rateCh.tp / (rateCh.tp + rateCh.fn))
+      print('recall:' + str(rateCh.tp / (rateCh.tp + rateCh.fn)))
     except:
-      fprList.append(0)
+      recallList.append(0)
 #Следующим шагом вычислим ROC-AUC и PR-AUC и построим ROC-кривую для оценки точности полученной модели:
 
-print("ROC-AUC: ", 0)
-print("PR-AUC: ", 0)
+print("ROC-AUC: ?")
+print("PR-AUC: ?")
 
-print(fprList)
-print(tprList)
+print(recallList)
+print(precisionList)
 
-plt.plot(fprList, tprList, color='r', label='Log Res')
-plt.title('ROC curve for Log Res')
+plt.plot(recallList, precisionList, color='r', label='Log Res')
+plt.title('precision-recall curve for Log Res')
 plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
-plt.xlabel('FPR')
-plt.ylabel('TPR')
+plt.xlabel('recall')
+plt.ylabel('precision')
+plt.grid()
+plt.show()
+plt.gcf().clear()
+
+#-----------------------------------------------------------------------
+#тестовые данные для opencv haarcascade (200 фотографий)
+
+#haarPath = "/content/haarcascade_russian_plate_number.xml"
+#200 img
+#recall:    [0.7743589743589744, 0.7632600258732212, 0.7269180754226268, 0.7, 0.5849297573435505, 0.44733420026007803, 0.5377604166666666]
+#precision: [0.23257604928763959, 0.4828150572831424, 0.5792746113989637, 0.6439665471923537, 0.592496765847348, 0.5639344262295082, 0.6011644832605532]
+
+#Построение графиков
+import matplotlib.pyplot as plt
+
+recallList = [0.7743589743589744, 0.7632600258732212, 0.7269180754226268, 0.7, 0.5849297573435505, 0.44733420026007803, 0.5377604166666666]
+precisionList = [0.23257604928763959, 0.4828150572831424, 0.5792746113989637, 0.6439665471923537, 0.592496765847348, 0.5639344262295082, 0.6011644832605532]
+
+fig = plt.figure()
+fig, ax = plt.subplots()
+ax.plot(recallList, precisionList, 's', color='red')
+plt.title('precision-recall curve for Log Res')
+plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
+plt.xlabel('recall')
+plt.ylabel('precision')
 plt.grid()
 plt.show()
 plt.gcf().clear()
