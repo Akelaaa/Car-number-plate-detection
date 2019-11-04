@@ -8,7 +8,6 @@ from PIL import Image  # Python Imaging Library
 
 def Error(errorStr):
     print('ERROR: ', errorStr)
-    file.close()
     raise SystemExit
 
 
@@ -60,6 +59,9 @@ if operatingMode == 'Good':
     for x in range(len(images)):
         # Good
         addStr = "Good"
+
+        imageName = ''
+        imageName = directory + '\\' + images[x]
 
         imageWriteName = ''
         imageWriteName = addStr + '\\' + images[x]
