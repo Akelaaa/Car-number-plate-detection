@@ -1,3 +1,4 @@
+#Для форматированя данных в программе использован json
 '''
 путь до изображения:
 path + keys[]
@@ -11,8 +12,7 @@ y2:testData[keys[0]]['regions']['0']['shape_attributes']['y'] + testData[keys[0]
 количество объектов:
 len(y1:testData[keys[0]]['regions'])
 '''
-
-#Для форматированя данных в программе использован json
+#==========================================================================
 '''
 "1_11_2014_12_13_38_590.bmp38467": {
   "fileref": "",
@@ -34,7 +34,7 @@ len(y1:testData[keys[0]]['regions'])
   }
 }
 '''
-#-----------------------------------------------------------------------
+#==========================================================================
 
 import math
 import random
@@ -54,15 +54,16 @@ from sklearn.metrics import average_precision_score
 #Построение графиков
 import matplotlib.pyplot as plt
 
-#-----------------------------------------------------------------------
+#==========================================================================
 #вспомогательные процедуры
 
-def changeOpCharac(detectListParam, markedDataParam, key, rateCh):
+def changeOpCharac(detectListParam, markedDataParam, key, rateCh, lowerBorder, topBorder):
     #список для найденных уникальных номерных пластин
     #список для общего количества найденных номерных пластин
     findPlates = []
     findUnicPlates = []
 
+    #делаем копии, чтобы работать с локальными параметрами
     detectList = detectListParam.copy()
     markedData = markedDataParam.copy()
 
@@ -134,15 +135,11 @@ def changeOpCharac(detectListParam, markedDataParam, key, rateCh):
             #print('xIntersection ' + str(xIntersection))
             #print('yIntersection ' + str(yIntersection))
 
-
             #вычисляем площади
             detectNumArea = math.sqrt((x2 - x1)**2) * math.sqrt((y2 - y1)**2)
             detectNumAreaInter = xIntersection * yIntersection
             numArea = math.sqrt((markedNumPlatesList[0] - markedNumPlatesList[2])**2) * math.sqrt((markedNumPlatesList[1] - markedNumPlatesList[3])**2)
 
-            #print('detectNumArea: ' + str(detectNumArea))
-            #print('detectNumAreaInter: ' + str(detectNumAreaInter))
-            #print('numArea: ' + str(numArea))
             #print('detectNumAreaInter / numArea: ' + str(detectNumAreaInter / numArea))
             #print('detectNumArea / numArea: ' + str(detectNumArea / numArea))
 
@@ -163,191 +160,172 @@ def changeOpCharac(detectListParam, markedDataParam, key, rateCh):
 
     return rateCh
 
-def drawMarkAndDetect(detectReg, markedRegions, itemKey):
+def drawMarkAndDetect(detectReg, markedRegions, itemKey, image):
+    #делаем копии списков, чтобы работать с локальными параметрами
+    localMarkedRegions = markedRegions.copy()
+    localDetectReg = detectReg.copy()
+
     markedNumPlates = []
-    for i in range(len(markedRegions[itemKey]['regions'])):
+    for i in range(len(localMarkedRegions[itemKey]['regions'])):
         batch = []
-        batch.append(markedRegions[itemKey]['regions'][str(i)]['shape_attributes']['x'])
-        batch.append(markedRegions[itemKey]['regions'][str(i)]['shape_attributes']['y'])
-        batch.append(markedRegions[itemKey]['regions'][str(i)]['shape_attributes']['width'])
-        batch.append(markedRegions[itemKey]['regions'][str(i)]['shape_attributes']['height'])
+        batch.append(localMarkedRegions[itemKey]['regions'][str(i)]['shape_attributes']['x'])
+        batch.append(localMarkedRegions[itemKey]['regions'][str(i)]['shape_attributes']['y'])
+        batch.append(localMarkedRegions[itemKey]['regions'][str(i)]['shape_attributes']['x'] + localMarkedRegions[itemKey]['regions'][str(i)]['shape_attributes']['width'])
+        batch.append(localMarkedRegions[itemKey]['regions'][str(i)]['shape_attributes']['y'] + localMarkedRegions[itemKey]['regions'][str(i)]['shape_attributes']['height'])
         markedNumPlates.append(batch)
 
-    for (x, y, w, h) in detectReg:
-        cv2.rectangle(image, (x, y), (x + w, y + h), (random.randint(50, 250), 232, random.randint(50, 250)), -1)
+    for (x, y, x1, y1) in localDetectReg:
+        cv2.rectangle(image, (x, y), (x1, y1), (random.randint(50, 250), 232, random.randint(50, 250)), -1)
 
-    for (x, y, w, h) in markedNumPlates:
-        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 250, 250), 2)
+    for (x, y, x1, y1) in markedNumPlates:
+        cv2.rectangle(image, (x, y), (x1, y1), (0, 250, 250), 2)
 
     cv2_imshow(image)
     cv2.waitKey(0)
 
+def makeDetectetData(image, numplateCascade, scaleF, minN):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-#-----------------------------------------------------------------------
-#Paths
+    #определяем, присутствует ли номерная пластина
+    #характеристики нужно менять, при оценке каскада
+    numPlates = numplateCascade.detectMultiScale(
+        gray,
+        scaleFactor = scaleF,
+        minNeighbors = minN
+    )
 
-#cascade.xml
-#haarcascade_russian_plate_number.xml
+    localDetectData = []
+    #для того, чтобы не появлялась ошибка, когда каскад не нашел номерных пластин
+    #создаем список в удобном для нас формате, т.к. для numPlates характерна запись (x, y, w, h)
+    if len(numPlates) == 0:
+        localDetectData = []
+    else:
+        for i in range(len(numPlates)):
+            bufData = [numPlates[i][0], numPlates[i][1], numPlates[i][0] + numPlates[i][2], numPlates[i][1] + numPlates[i][3]]
+            localDetectData.append(bufData)
 
-haarPath = "/content/haarcascade_russian_plate_number.xml"
-dataPath = '/content/numplates_region_data.json'
-drivePath = '/content/drive/My Drive/testData/'
+    return localDetectData
+#==========================================================================
 
-print('CV2 version: ')
-print(cv2.__version__ + '\n')
+def mainProcedure():
+    #Paths
+    #cascade.xml
+    #haarcascade_russian_plate_number.xml
 
-#-----------------------------------------------------------------------
-#загрузка данных
+    haarPath = "/content/haarcascade_russian_plate_number.xml"
+    dataPath = '/content/numplates_region_data.json'
+    drivePath = '/content/drive/My Drive/testData/'
 
-#загружаем каскад
-numplateCascade = cv2.CascadeClassifier(haarPath)
+    print('CV2 version: ')
+    print(cv2.__version__ + '\n')
 
-#загружаем файл с размеченной тестовой выборкой
-with open(dataPath, "r") as read_file:
-    testData = json.load(read_file)
-    #создаем список ключей в словаре
-    keys = list(testData.keys())
+    #-----------------------------------------------------------------------
+    #загрузка данных
+
+    #загружаем каскад
+    numplateCascade = cv2.CascadeClassifier(haarPath)
+
+    #загружаем файл с размеченной тестовой выборкой
+    with open(dataPath, "r") as read_file:
+        testData = json.load(read_file)
+        #создаем список ключей в словаре
+        keys = list(testData.keys())
 
 
-#-----------------------------------------------------------------------
-#тестирование
+    #-----------------------------------------------------------------------
+    #тестирование
 
-class Characteristics:
-    #положительные характеристики
-    tp = 0
-    tn = 0
-    #отрицательные характеристики
-    fp = 0
-    fn = 0
+    class Characteristics:
+        #положительные характеристики
+        tp = 0
+        tn = 0
+        #отрицательные характеристики
+        fp = 0
+        fn = 0
 
-rateCh = Characteristics()
+    rateCh = Characteristics()
 
-#border для определения, правильно найден номер или не правильно
-#для площади пересечения номерных рамок
-lowerBorder = 0.7
-topBorder = 1.8
+    #border для определения, правильно найден номер или не правильно
+    #для площади пересечения номерных рамок
+    lowerBorder = 0.7
+    topBorder = 1.8
 
-#два списка для составления ROC-кривой
-precisionList = []
-recallList = []
+    #два списка для составления PR-кривой
+    precisionList = []
+    recallList = []
 
-#точки, для построения графика
-points = [1.01, 1.05, 1.1, 1.2, 1.3, 1.4, 1.5]
-numNeigh = [1, 3, 5, 7]
+    #точки, для построения графика
+    #points = [1.01, 1.05, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
+    #numNeigh = [3, 5, 7]
 
-#временная переменная для фикрисорованного количества итераций (вместо len(keys)) iterKeys = 4
+    points = [1.1]
+    numNeigh = [3]
+    for pIter in range(len(points)):
+        rateCh.tp = 0
+        rateCh.tn = 0
+        rateCh.fp = 0
+        rateCh.fn = 0
 
-for pIter in range(len(points)):
-    rateCh.tp = 0
-    rateCh.tn = 0
-    rateCh.fp = 0
-    rateCh.fn = 0
-    #проходимся по всем тестовым картинкам
+        #проходимся по всем тестовым картинкам
+        for numIter in range(len(numNeigh)):
 
-    for numIter in range(len(numNeigh)):
+            for i in range(len(keys) // 10):
 
-        for i in range(len(keys) // 5):
+                #для удобства сохраним ключ в отдельную переменную
+                itemKey = keys[i]
 
-            #для удобства сохраним ключ в отдельную переменную
-            itemKey = keys[i]
+                print('----------------------------------------------------')
+                print(str(i) + '. ' + testData[itemKey]['filename'])
 
-            print('----------------------------------------------------')
-            print(str(i) + '. ' + testData[itemKey]['filename'])
+                #считываем изображение
+                image = cv2.imread(drivePath + testData[itemKey]['filename'])
+                if image is None:
+                    continue
 
-            #преобразуем изображение
-            image = cv2.imread(drivePath + testData[itemKey]['filename'])
-            if image is None:
-                continue
-
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-            #определяем, присутствует ли номерная пластина
-            #характеристики нужно менять, при оценке каскада
-            numPlates = numplateCascade.detectMultiScale(
-                gray,
-                scaleFactor = points[pIter],
-                minNeighbors = numNeigh[numIter]
-            )
-
-            detectData = []
-            #для того, чтобы не появлялась ошибка, когда каскад не нашел номерных пластин
-            #создаем список в удобном для нас формате, т.к. для numPlates характерна запись (x, y, w, h)
-            if len(numPlates) == 0:
                 detectData = []
-            else:
-              for i in range(len(numPlates)):
-                bufData = [numPlates[i][0], numPlates[i][1], numPlates[i][0] + numPlates[i][2], numPlates[i][1] + numPlates[i][3]]
-                detectData.append(bufData)
+                detectData = makeDetectetData(image, numplateCascade, points[pIter], numNeigh[numIter])
 
-            #numPlates это список из списков [[],[]]
-            #передаем в функцию list с найденными номерами и размеченные данные
-            #данная функция увеличит tpr
-            rateCh = changeOpCharac(detectData, testData, itemKey, rateCh)
+                #numPlates это список из списков [[],[]]
+                #передаем в функцию list с найденными номерами и размеченные данные
+                rateCh = changeOpCharac(detectData, testData, itemKey, rateCh, lowerBorder, topBorder)
 
-            print('   TP: ' + str(rateCh.tp) + ' TN: ' + str(rateCh.tn) + ' FP: ' + str(rateCh.fp) + ' FN: ' + str(rateCh.fn))
-            print('   Number of license plates: ', len(testData[itemKey]['regions']))
-            print('   Found: {0} numplate!'.format(len(numPlates)))
-            print('----------------------------------------------------')
+                print('   TP: ' + str(rateCh.tp) + ' TN: ' + str(rateCh.tn) + ' FP: ' + str(rateCh.fp) + ' FN: ' + str(rateCh.fn))
+                print('   Number of license plates: ', len(testData[itemKey]['regions']))
+                print('   Found: {0} numplate!'.format(len(detectData)))
+                print('----------------------------------------------------')
+
+                drawMarkAndDetect(detectData, testData, itemKey, image)
+
+            #считаем precision и recall (учитываем деление на ноль)
+            try:
+              precisionList.append(rateCh.tp / (rateCh.tp + rateCh.fp))
+              print('precision:' + str(rateCh.tp / (rateCh.tp + rateCh.fp)))
+            except:
+              precisionList.append(0)
+
+            try:
+              recallList.append(rateCh.tp / (rateCh.tp + rateCh.fn))
+              print('recall:' + str(rateCh.tp / (rateCh.tp + rateCh.fn)))
+            except:
+              recallList.append(0)
 
             #обнуляем
-            #rateCh.tp = 0
-            #rateCh.tn = 0
-            #rateCh.fp = 0
-            #rateCh.fn = 0
+            rateCh.tp = 0
+            rateCh.tn = 0
+            rateCh.fp = 0
+            rateCh.fn = 0
 
+    #Следующим шагом построим PR-кривую для оценки точности полученной модели:
+    print(recallList)
+    print(precisionList)
 
-            #drawMarkAndDetect(numPlates, testData, itemKey)
+    plt.plot(recallList, precisionList, color='r', label='Log Res')
+    plt.title('precision-recall curve for Log Res')
+    plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
+    plt.xlabel('recall')
+    plt.ylabel('precision')
+    plt.grid()
+    plt.show()
+    plt.gcf().clear()
 
-    #считаем fpr и trp (учитываем деление на ноль)
-    try:
-      precisionList.append(rateCh.tp / (rateCh.tp + rateCh.fp))
-      print('precision:' + str(rateCh.tp / (rateCh.tp + rateCh.fp)))
-    except:
-      precisionList.append(0)
-
-    try:
-      recallList.append(rateCh.tp / (rateCh.tp + rateCh.fn))
-      print('recall:' + str(rateCh.tp / (rateCh.tp + rateCh.fn)))
-    except:
-      recallList.append(0)
-#Следующим шагом вычислим ROC-AUC и PR-AUC и построим ROC-кривую для оценки точности полученной модели:
-
-print("ROC-AUC: ?")
-print("PR-AUC: ?")
-
-print(recallList)
-print(precisionList)
-
-plt.plot(recallList, precisionList, color='r', label='Log Res')
-plt.title('precision-recall curve for Log Res')
-plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
-plt.xlabel('recall')
-plt.ylabel('precision')
-plt.grid()
-plt.show()
-plt.gcf().clear()
-
-#-----------------------------------------------------------------------
-#тестовые данные для opencv haarcascade (200 фотографий)
-
-#haarPath = "/content/haarcascade_russian_plate_number.xml"
-#200 img
-#recall:    [0.7743589743589744, 0.7632600258732212, 0.7269180754226268, 0.7, 0.5849297573435505, 0.44733420026007803, 0.5377604166666666]
-#precision: [0.23257604928763959, 0.4828150572831424, 0.5792746113989637, 0.6439665471923537, 0.592496765847348, 0.5639344262295082, 0.6011644832605532]
-
-#Построение графиков
-import matplotlib.pyplot as plt
-
-recallList = [0.7743589743589744, 0.7632600258732212, 0.7269180754226268, 0.7, 0.5849297573435505, 0.44733420026007803, 0.5377604166666666]
-precisionList = [0.23257604928763959, 0.4828150572831424, 0.5792746113989637, 0.6439665471923537, 0.592496765847348, 0.5639344262295082, 0.6011644832605532]
-
-fig = plt.figure()
-fig, ax = plt.subplots()
-ax.plot(recallList, precisionList, 's', color='red')
-plt.title('precision-recall curve for Log Res')
-plt.plot([0, 1], [0, 1], color='navy', linestyle='--')
-plt.xlabel('recall')
-plt.ylabel('precision')
-plt.grid()
-plt.show()
-plt.gcf().clear()
+mainProcedure()
